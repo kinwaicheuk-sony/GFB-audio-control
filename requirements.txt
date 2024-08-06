@@ -5,4 +5,5 @@ einops==0.4.1
 pandas==2.2.1
 soundfile==0.12.1
 tqdm==4.66.3
+scipy==1.8.0
 POT==0.9.3

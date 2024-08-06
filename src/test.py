@@ -6,13 +6,17 @@ import utils.utils as utils
 from utils.utils import apply_RIR_delay, crop_or_extend
 from collections.abc import Sequence
 import scipy.signal
-
+from diffusion.OTCFM import OTCFM
 
 def test(args):
 
     save_path = Path(args.save_path)
-    # assert that this path exists
-    assert save_path.exists(), "Save path does not exist!"
+    # check if this path exists
+    if not save_path.exists():
+        print("Save path does not exist! Creating it...")
+        save_path.mkdir(parents=True, exist_ok=True)
+    else:
+        print("Save path exists! Using it...")  
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
