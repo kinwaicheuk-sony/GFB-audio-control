@@ -227,6 +227,161 @@ class AudioDatasetInfinite_VCTK_clip(torch.utils.data.IterableDataset):
             yield audio.unsqueeze(0), SDR.float()
 
 
+class AudioDataset_Instrument_Transfer(torch.utils.data.IterableDataset):
+    """
+    Infinite random audio data sampler.
+    """
+
+    def __init__(self,
+                 path="/home/t-ejuanpere/blob/datasets/VCTK_16kHz",
+                 segment_length=65536,
+                 fs=16000,
+                 sigma_data=0.05,
+                 apply_random_gain=True,
+                 random_gain=[-2, 2],
+                 percentage_clean=50,
+                 num_resampling_methods=5,
+                 gain_range=[5, 30]  # defined in dB arbitrarily
+                 ):
+
+        self.sampling_rate = fs
+        self.segment_length = segment_length
+        self.audio_files = glob(os.path.join(path, "*.flac"))
+        self.audio_files.extend(glob(os.path.join(path, "*.wav")))
+
+        self.num_files = len(self.audio_files)
+        # what to do when the sample is shorter than the segment length
+        self.sigma_data = sigma_data
+
+        self.apply_random_gain = apply_random_gain
+        if self.apply_random_gain:
+            assert random_gain[0] < random_gain[1], "random_gain must be a list of two elements"
+            self.random_gain = random_gain
+
+        self.percentage_clean = percentage_clean
+        self.num_resampling_methods = num_resampling_methods
+
+        self.gain_range = gain_range
+
+    def hard_clip_audio(self, x):
+        # randomly choose anechoic or reverberant
+        if random.randint(0, 100) < self.percentage_clean:
+            y = x
+            SDR = 50
+            SDR = torch.tensor(SDR)
+        else:
+            gain_db = random.uniform(self.gain_range[0], self.gain_range[1])
+            gain_lin = 10**(gain_db/20)
+
+            y = torch.clamp(x*gain_lin, min=-1, max=1)
+            y /= gain_lin
+
+            SDR = 10*torch.log10(torch.sum(x**2)/torch.sum((x-y)**2))
+            SDR = torch.clamp(SDR, min=0, max=50)
+
+        return y, SDR
+
+    def __iter__(self):
+        while True:
+            index = random.randint(0, self.num_files-1)
+            # Read audio
+            filename = self.audio_files[index]
+            audio, sampling_rate = load_wav_to_torch(filename)
+            assert sampling_rate == self.sampling_rate, f"sampling_rate={sampling_rate} != self.sampling_rate={self.sampling_rate}"
+
+            # Take segment
+            audio = crop_or_extend(audio, self.segment_length)
+
+            audio, SDR = self.hard_clip_audio(audio)
+
+            audio = audio/audio.std()  # applying standardization here
+
+            if self.apply_random_gain:
+                audio = audio * \
+                    10**(np.random.uniform(
+                        low=self.random_gain[0], high=self.random_gain[1])/20)
+            audio = audio.float()
+
+            yield audio.unsqueeze(0), SDR.float()
+
+class AudioDataset_Instrument_Transfer(torch.utils.data.IterableDataset):
+    """
+    Infinite random audio data sampler.
+    """
+
+    def __init__(self,
+                 path="/tss/yurii/chamber-ensemble-generator/full/main_dataset/train",
+                 segment_length=65536,
+                 fs=16000,
+                 sigma_data=0.05,
+                 apply_random_gain=True,
+                 random_gain=[-2, 2],
+                 percentage_clean=50,
+                 num_resampling_methods=5,
+                 gain_range=[5, 30]  # defined in dB arbitrarily
+                 ):
+
+        self.sampling_rate = fs
+        self.apply_random_gain = apply_random_gain
+        self.random_gain = random_gain
+        self.segment_length = segment_length
+        self.violin_audio_files = glob(os.path.join(
+            path,
+            "*",
+            "*",
+            "*violin*.wav"
+            ))
+        self.flute_audio_files = glob(os.path.join(
+            path,
+            "*",
+            "*",
+            "*flute*.wav"
+            ))            
+
+        self.num_violin_files = len(self.violin_audio_files)
+        self.num_flute_files = len(self.flute_audio_files)
+        # what to do when the sample is shorter than the segment length
+        self.sigma_data = sigma_data
+
+        self.percentage_clean = percentage_clean
+        self.num_resampling_methods = num_resampling_methods
+
+    def load_audio(self):        
+        # randomly choose anechoic or reverberant
+        if random.randint(0, 100) < self.percentage_clean:
+            violin_index = random.randint(0, self.num_violin_files)
+            SDR = 0 # SDR is now the instrument condition
+            SDR = torch.tensor(SDR)
+            filename = self.violin_audio_files[violin_index]
+        else:
+            flute_index = random.randint(0, self.num_flute_files)
+            SDR = 1 # SDR is now the instrument condition
+            SDR = torch.tensor(SDR)
+            filename = self.flute_audio_files[flute_index]
+
+        # Read audio
+        y, sampling_rate = load_wav_to_torch(filename)
+        assert sampling_rate == self.sampling_rate, f"sampling_rate={sampling_rate} != self.sampling_rate={self.sampling_rate}"        
+        # Take segment
+        y = crop_or_extend(y, self.segment_length)
+
+        return y, SDR, filename
+
+    def __iter__(self):
+        while True:
+            audio, SDR, filename = self.load_audio()
+            audio = audio/audio.std()  # applying standardization here
+
+            if self.apply_random_gain:
+                audio = audio * \
+                    10**(np.random.uniform(
+                        low=self.random_gain[0], high=self.random_gain[1])/20)
+            audio = audio.float()
+
+            yield audio.unsqueeze(0), SDR.float(), filename
+
+
+
 def load_wav_to_torch(full_path):
     """
     Loads wavdata into torch array
