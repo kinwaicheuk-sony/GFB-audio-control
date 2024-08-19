@@ -1,0 +1,21 @@
+modes: ["bridge_timbre"] #["T60_C50","unconditional"]
+T: 25
+batch: 4
+checkpoint: "checkpoint_latest.pt"
+segment_length: 65536
+
+CFG: 1.0
+
+bridge_end_t: 1 # if it is lower than 1 the forward ODE will stop at that time, and the backward ODE will start from that time
+
+schedule: "cosine"
+  
+
+
+test_audio_example:
+  - "/tss/yurii/chamber-ensemble-generator/full/main_dataset/test/string_track218374/stems_audio/1_violin.wav"
+  - "/tss/yurii/chamber-ensemble-generator/full/main_dataset/test/string_track218374/stems_audio/2_violin.wav"
+
+
+SDR: [1]
+gain_db: [0]

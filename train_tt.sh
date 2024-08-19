@@ -1,0 +1,1 @@
+python src/train.py --config-name=conf_timbre_transfer.yaml

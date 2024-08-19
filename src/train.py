@@ -20,11 +20,12 @@ def worker_init_fn(worker_id):
 def train(args):
 
     save_path = Path(args.save_path)
+    print(f"==============={save_path=}")
 
     # create save path if it does not exist
     save_path.mkdir(parents=True, exist_ok=True)
 
-    gpu_id = 0
+    gpu_id = args.gpu_id
 
     try:
         torch.cuda.set_device(gpu_id)
@@ -144,6 +145,16 @@ def train(args):
             params = {"SDR": SDR}
             return x, params
 
+        elif args.exp.task == "timbre_transfer":
+            x, SDR, filename = next(train_loader)
+            # Loading:
+            #   x: (B, 1, T) clipped audio
+            #   SDR: (B,) SDR values
+
+            x = x.to(device, non_blocking=True)
+            params = {"SDR": SDR}
+            return x, params     
+
     #################
     # Training loop #
     #################
@@ -170,6 +181,12 @@ def train(args):
             total_loss, loss_dict, t = diff.compute_loss(
                 x, model, cond=params, task="declipping"
             )
+
+        elif args.exp.task == "timbre_transfer":
+            x, params = batch
+            total_loss, loss_dict, t = diff.compute_loss(
+                x, model, cond=params, task="timbre_transfer"
+            )            
 
         else:
             raise NotImplementedError(

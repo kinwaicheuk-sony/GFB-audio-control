@@ -1,0 +1,12 @@
+
+dataset:
+  _target_: datasets.datasets.AudioDataset_Instrument_Transfer
+  segment_length: 65536
+  fs: 16000
+  path: /tss/yurii/chamber-ensemble-generator/full/main_dataset/train
+  sigma_data: 0.05 #for normalization purposes
+  apply_random_gain: True #apply random gain to RIRs as augmentation
+  random_gain: [-2, 2] #min and max gain in dB
+  percentage_clean: 10
+ 
+

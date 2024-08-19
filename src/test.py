@@ -27,7 +27,7 @@ def test(args):
     model.to(device)
 
     # save checkpoints
-    checkpoint_file=utils.get_checkpoint_file( args.checkpoint, save_path)
+    checkpoint_file=utils.get_checkpoint_file(args.checkpoint, save_path)
     checkpoint_file = Path(checkpoint_file)
     
     print("Checkpoint file:", checkpoint_file)
@@ -250,6 +250,89 @@ def do_test(args, diff=None, model=None, device=None, save_path=None, iteration=
 
             elif isinstance(test_audio_example, str):
                 raise NotImplementedError("test_audio_example must be a list of files")
+
+        elif m == "bridge_timbre":
+            print("test_audio_example", args.tester.test_audio_example)
+
+            test_audio_example = args.tester.test_audio_example
+            assert test_audio_example is not None, "test_audio_example must be provided"
+
+            if isinstance(test_audio_example, Sequence):
+                for i, example_audio in enumerate(args.tester.test_audio_example):
+                    for j in range(len(args.tester.gain_db)):
+                        # prepare starting test example
+                        audio, fs = sf.read(example_audio)
+                        if len(audio.shape) > 1:
+                            audio = (audio[:, 0] + audio[:, 1]) / 2
+                        if fs != args.exp.fs:
+                            # resample
+                            audio = scipy.signal.resample(
+                                audio, int(len(audio) * args.exp.fs / fs)
+                            )
+
+                        audio = torch.Tensor(audio).to(device).float()
+                        audio = crop_or_extend(
+                            audio,
+                            args.tester.segment_length,
+                            deterministic=True,
+                            start=8000,
+                        )
+                        assert (
+                            audio.shape[-1] == args.tester.segment_length
+                        ), "audio.shape[-1]={} != args.tester.segment_length={}".format(
+                            audio.shape[-1], args.tester.segment_length
+                        )
+
+                        gain_db = args.tester.gain_db[j]
+
+
+                        gain_lin = 10 ** (gain_db / 20)
+
+                        y = torch.clamp(audio * gain_lin, min=-1, max=1)
+                        y /= gain_lin
+
+                        y = y / y.std()
+
+                        x_in = y.unsqueeze(0).unsqueeze(0)
+
+                        # log that
+                        utils.save_audio(
+                            x_in * args.data.dataset.sigma_data,
+                            save_path,
+                            "x_in_bridge_drive" + str(i) + str(j)+"_iter_"+str(iteration),
+                            args.exp.fs,
+                        )
+
+                        # params for conditional reverse sampling
+                        SDR = torch.Tensor(args.tester.SDR)
+
+                        batch = SDR.shape[0]
+                        if args.tester.batch != batch:
+                            print(
+                                "Warning: batch size is different from the length of T60s and C50s. Using the length of T60s and C50s as batch size"
+                            )
+
+                        # shape=(batch, 1, args.tester.segment_length)
+
+                        params = torch.cat([SDR.unsqueeze(1)], dim=1).to(device)
+                        result, z = diff.bridge(
+                            x_in,
+                            model=model,
+                            Tsteps=args.tester.T,
+                            cond=params,
+                            cfg=args.tester.CFG,
+                            schedule_type=args.tester.schedule,
+                            bridge_end_t=args.tester.bridge_end_t,
+                        )
+                        print("result", result.shape, result.mean(), result.std())
+                        result *= args.data.dataset.sigma_data
+
+                        utils.save_audio(
+                                result,
+                                save_path,
+                                "result_bridge_drive" + str(i) + str(j)+"_iter_"+str(iteration),
+                                args.exp.fs,
+                        )                
         else:
             raise NotImplementedError("Mode {} not implemented".format(m))
 

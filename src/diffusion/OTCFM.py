@@ -106,6 +106,9 @@ class OTCFM():
         elif task=="declipping":
             SDR=cond["SDR"]
             used_conds=[SDR]
+        elif task=="timbre_transfer":
+            SDR=cond["SDR"]
+            used_conds=[SDR]            
         else:
             raise NotImplementedError("the task {} is not implemented".format(task))
         
